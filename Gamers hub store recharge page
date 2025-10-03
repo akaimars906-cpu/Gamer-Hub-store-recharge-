@@ -1,0 +1,304 @@
+game-topup-starter/
+├── lib/
+│   └── db.js
+├── pages/
+│   ├── api/
+│   │   ├── create-order.js
+│   │   ├── admin-orders.js
+│   │   └── admin-fulfill.js
+│   ├── admin.js
+│   ├── _app.js
+│   └── index.js
+├── public/
+│   ├── bg.jpg                <-- add your gaming wallpaper here
+│   ├── paytm_qr.png          <-- add your Paytm QR image here
+│   ├── diamond.png           <-- diamond icon (MLBB)
+│   └── uc.png                <-- UC icon (PUBG)
+├── package.json
+├── .gitignore
+└── README.md
+{
+  "name": "game-topup-starter-paytm",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "13.4.7",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "swr": "2.1.2",
+    "uuid": "9.0.0"
+  }
+}// pages/_app.js
+import '../styles.css';
+export default function App({ Component, pageProps }) {
+  return <Component {...pageProps} />;
+}/* styles.css */
+:root{
+  --accent: #6b5bff;
+  --accent2: #00d4ff;
+  --card: rgba(255,255,255,0.04);
+  --glass: rgba(255,255,255,0.06);
+  --text: #e9eef8;
+}
+
+html,body,#__next{ height:100%; margin:0; font-family:Inter, system-ui, Arial; color:var(--text); }
+
+body{
+  background: url('/bg.jpg') center/cover no-repeat fixed;
+  background-color: #071026;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+.container{
+  max-width:1100px; margin:32px auto; padding:28px;
+  backdrop-filter: blur(6px);
+}
+
+.header{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:18px;
+}
+.brand{ display:flex; gap:12px; align-items:center; }
+.brand h1{ margin:0; font-size:22px; letter-spacing:0.6px; }
+.tag{ color:#bcd7ff; font-size:13px; }
+
+.grid{ display:grid; grid-template-columns: 1fr 380px; gap:20px; align-items:start; }
+
+.card{
+  background: linear-gradient(145deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border-radius:14px; padding:18px; box-shadow: 0 6px 24px rgba(0,0,0,0.6);
+}
+
+.package{
+  display:flex; align-items:center; gap:12px; padding:12px; border-radius:10px;
+  margin-bottom:10px; background:var(--card);
+}
+.package img{ width:52px; height:52px; object-fit:contain; }
+.package .meta{ flex:1; }
+.pkg-title{ font-weight:600; font-size:16px; }
+.pkg-price{ font-weight:700; color:var(--accent2); margin-top:6px; }
+
+.pay-qr{
+  text-align:center;
+}
+.pay-qr img{ width:220px; height:220px; border-radius:12px; background:#fff; padding:8px; }
+
+input, select, textarea{ width:100%; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:transparent; color:var(--text); }
+button{ padding:10px 14px; border-radius:10px; border:none; cursor:pointer; background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#03102a; font-weight:700; }
+.small{ font-size:13px; color:#bcd7ff; }
+
+.admin-table{ width:100%; border-collapse:collapse; }
+.admin-table th, .admin-table td{ padding:10px; text-align:left; border-bottom:1px solid rgba(255,255,255,0.03); font-size:14px; }
+.img-snap{ max-width:120px; border-radius:6px; border:1px solid rgba(0,0,0,0.4); }
+
+.footer-note{ margin-top:14px; font-size:13px; color:#b8cfff; }// pages/index.js
+import { useState } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+
+const PACKAGES = [
+  { id: 'ml_5', label: 'MLBB: 5 Diamonds', amount: 11, icon: '/diamond.png' },
+  { id: 'ml_11', label: 'MLBB: 11 Diamonds', amount: 20, icon: '/diamond.png' },
+  { id: 'ml_14', label: 'MLBB: 14 Diamonds', amount: 25, icon: '/diamond.png' },
+  { id: 'pubg_60', label: 'PUBG: 60 UC', amount: 70, icon: '/uc.png' },
+  { id: 'ml_56', label: 'MLBB: 56 Diamonds', amount: 77, icon: '/diamond.png' },
+  { id: 'ml_86', label: 'MLBB: 86 Diamonds', amount: 129, icon: '/diamond.png' }
+];
+
+export default function Home(){
+  const [uid, setUid] = useState('');
+  const [email, setEmail] = useState('');
+  const [pkg, setPkg] = useState(PACKAGES[0].id);
+  const [txn, setTxn] = useState('');
+  const [fileDataUrl, setFileDataUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  function handleFile(e){
+    const f = e.target.files[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setFileDataUrl(ev.target.result);
+    reader.readAsDataURL(f);
+  }
+
+  async function placeOrder(e){
+    e.preventDefault();
+    if(!uid || !email || !txn || !fileDataUrl){ alert('Please fill all fields and upload screenshot'); return; }
+    setLoading(true);
+    const orderId = 'ord_' + uuidv4().slice(0,8);
+    const packageInfo = PACKAGES.find(p=>p.id===pkg);
+    const payload = {
+      orderId,
+      playerUID: uid,
+      email,
+      packageId: pkg,
+      amountPaid: packageInfo.amount,
+      txnId: txn,
+      screenshot: fileDataUrl,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+    const res = await fetch('/api/create-order', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const js = await res.json();
+    setLoading(false);
+    if(js.ok) {
+      alert('Order created — waiting for admin confirmation. Order ID: ' + orderId);
+      setUid(''); setEmail(''); setTxn(''); setFileDataUrl('');
+    } else alert('Error creating order');
+  }
+
+  const selectedPackage = PACKAGES.find(p=>p.id===pkg);
+
+  return (
+    <div className="container">
+      <div className="header">
+        <div className="brand">
+          <img src="/diamond.png" style={{width:48}} alt="logo"/>
+          <div>
+            <h1>GameTopup — Fast Top-ups</h1>
+            <div className="tag">Pay via Paytm UPI — upload screenshot to confirm</div>
+          </div>
+        </div>
+        <div className="small">Contact: WhatsApp • Admin panel</div>
+      </div>
+
+      <div className="grid">
+        <div>
+          <div className="card">
+            <h3>Choose Package</h3>
+            {PACKAGES.map(p=>(
+              <label key={p.id} className="package">
+                <img src={p.icon} alt="" />
+                <div className="meta">
+                  <div className="pkg-title">{p.label}</div>
+                  <div className="pkg-price">₹{p.amount}</div>
+                </div>
+                <div>
+                  <input type="radio" name="pkg" value={p.id} checked={pkg===p.id} onChange={()=>setPkg(p.id)} />
+                </div>
+              </label>
+            ))}
+          </div>
+
+          <div className="card" style={{marginTop:16}}>
+            <h3>Enter Player Details & Payment Proof</h3>
+            <form onSubmit={placeOrder} style={{display:'grid', gap:10}}>
+              <label>Player UID / ID
+                <input value={uid} onChange={e=>setUid(e.target.value)} placeholder="e.g. 9233586975" />
+              </label>
+              <label>Email (receipt)
+                <input value={email} onChange={e=>setEmail(e.target.value)} type="email" />
+              </label>
+              <label>Selected Package
+                <input value={`${selectedPackage?.label} — ₹${selectedPackage?.amount}`} readOnly />
+              </label>
+              <label>After paying with Paytm/UPI, enter Transaction ID (UTR)
+                <input value={txn} onChange={e=>setTxn(e.target.value)} placeholder="Txn ID from Paytm" />
+              </label>
+              <label>Upload screenshot of payment
+                <input type="file" accept="image/*" onChange={handleFile} />
+              </label>
+
+              {fileDataUrl && <img src={fileDataUrl} alt="screenshot" style={{maxWidth:260, borderRadius:8}} />}
+
+              <button type="submit" disabled={loading}>{loading ? 'Submitting...' : 'Submit Order'}</button>
+            </form>
+            <div className="footer-note">Orders are marked fulfilled by admin after manual verification of payment.</div>
+          </div>
+        </div>
+
+        <div>
+          <div className="card pay-qr">
+            <h3>Pay via Paytm UPI</h3>
+            <img src="/paytm_qr.png" alt="Paytm QR"/>
+            <p className="small">Scan QR with Paytm / PhonePe / Google Pay and send the exact amount. Then enter Txn ID + screenshot above.</p>
+            <div style={{marginTop:14, fontSize:13}}>Example UPI: <strong>your-upi@paytm</strong> (replace with scanned details if shown)</div>
+          </div>
+
+          <div className="card" style={{marginTop:16, textAlign:'center'}}>
+            <h4>Tips</h4>
+            <p className="small">Use exact package price. If admin doesn't confirm within 15 minutes, send a WhatsApp message to admin with the order ID.</p>
+            <img src="/uc.png" style={{width:88, marginTop:8}} alt="uc" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}// pages/admin.js
+import useSWR from 'swr';
+import { useState } from 'react';
+
+const fetcher = (url) => fetch(url).then(r=>r.json());
+
+export default function Admin(){
+  const { data, mutate } = useSWR('/api/admin-orders', fetcher, { refreshInterval: 3000 });
+  const [secret, setSecret] = useState('');
+
+  async function markFulfilled(orderId){
+    const ok = confirm('Mark order ' + orderId + ' as fulfilled?');
+    if(!ok) return;
+    await fetch('/api/admin-fulfill', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ orderId }) });
+    mutate();
+  }
+
+  if(!data) return <div style={{padding:24}}>Loading...</div>;
+
+  return (
+    <div className="container">
+      <div className="header">
+        <div className="brand"><h1>Admin — Orders</h1></div>
+        <div>
+          <div className="small">Protected by simple check (no auth) — secure this in production</div>
+        </div>
+      </div>
+
+      <div className="card">
+        <table className="admin-table">
+          <thead>
+            <tr><th>Order</th><th>UID</th><th>Package</th><th>Amt</th><th>Txn ID</th><th>Screenshot</th><th>Status</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            {data.orders.map(o => (
+              <tr key={o.orderId}>
+                <td>{o.orderId}<div style={{fontSize:12, color:'#9fb8ff'}}>{new Date(o.createdAt).toLocaleString()}</div></td>
+                <td>{o.playerUID}</td>
+                <td>{o.packageId}</td>
+                <td>₹{o.amountPaid}</td>
+                <td>{o.txnId}</td>
+                <td>{o.screenshot ? <img src={o.screenshot} className="img-snap" alt="snap"/> : '-'}</td>
+                <td>{o.status}</td>
+                <td>{o.status === 'fulfilled' ? '-' : <button onClick={()=>markFulfilled(o.orderId)}>Mark fulfilled</button>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div style={{marginTop:12}} className="footer-note">Note: In production add authentication & two-factor for admin pages.</div>
+      </div>
+    </div>
+  );
+} // pages/api/create-order.js
+import db from '../../lib/db';
+
+export default function handler(req, res){
+  if(req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const payload = req.body;
+  if(!payload.orderId || !payload.playerUID) return res.status(400).json({ error: 'Missing fields' });
+
+  db.createOrder(payload);
+  return res.json({ ok: true });
+}// pages/api/admin-fulfill.js
+import db from '../../lib/db';
+export default function handler(req,res){
+  if(req.method !== 'POST') return res.status(405).json({ error:'Method not allowed' });
+  const { orderId } = req.body;
+  const order = db.updateOrder(orderId, { status: 'fulfilled', fulfilledAt: new Date().toISOString() });
+  if(!order) return res.status(404).json({ error:'Not found' });
+  return res.json({ ok:true });
+}node_modules
+.next
+.DS_Store
